@@ -32,13 +32,11 @@ class Plsa:
         self.each = map(sum, map(lambda x:x.values(), corpus))
         self.words = max(reduce(operator.add, map(lambda x:x.keys(), corpus)))+1
         self.likelihood = 0
-        #下面两个是需要求解的
-        self.zw = _rand_mat(self.topics, self.words) #P(z|w)
+        self.zw = _rand_mat(self.topics, self.words) #P(z|w)，这个是训练出来最后需要使用的，看哪个zw的概率最大，朴素贝叶斯思想
         self.dz = _rand_mat(self.docs, self.topics) #P(d|z)
-        self.dw_z = None #???
-        self.p_dw = [] #这个是应当已知的
+        self.dw_z = None #隐含变量z在当前参数取值条件下的后验概率（P(z|d,w)），在E步骤中计算
+        self.p_dw = [] #联合概率
         self.beta = 0.8
-
 
     #并不重要的两个
     def save(self, fname, iszip=True):
@@ -77,19 +75,19 @@ class Plsa:
                 self.__dict__[k] = v
 
     def _cal_p_dw(self):
-        self.p_dw = []
+        self.p_dw = [] #每次都要重新计算
         for d in xrange(self.docs):
             self.p_dw.append({}) #加一列
             for w in self.corpus[d]:
                 tmp = 0
                 for _ in range(self.corpus[d][w]):
                     for z in xrange(self.topics):
-                        tmp += (self.zw[z][w]*self.dz[d][z])**self.beta
+                        tmp += (self.zw[z][w]*self.dz[d][z])**self.beta #p_dw根据zw和dz更新
                 self.p_dw[-1][w] = tmp
 
     def _e_step(self):
-        self._cal_p_dw()
-        self.dw_z = []
+        self._cal_p_dw() #主要目的是计算dw_z，但之前要先更新目前参数下的p_dw，然后用带概率公式算
+        self.dw_z = [] #更新dw_z，求后验
         for d in xrange(self.docs):
             self.dw_z.append({})
             for w in self.corpus[d]:
@@ -98,6 +96,7 @@ class Plsa:
                     self.dw_z[-1][w].append(((self.zw[z][w]*self.dz[d][z])**self.beta)/self.p_dw[d][w])
 
     def _m_step(self):
+        #zw是最后预测主要使用的
         for z in xrange(self.topics):
             self.zw[z] = [0]*self.words
             for d in xrange(self.docs):
@@ -106,6 +105,7 @@ class Plsa:
             norm = sum(self.zw[z])
             for w in xrange(self.words):
                 self.zw[z][w] /= norm
+        #dz由于E步骤需要计算值，也需要求
         for d in xrange(self.docs):
             self.dz[d] = [0]*self.topics
             for z in xrange(self.topics):
@@ -114,8 +114,8 @@ class Plsa:
             for z in xrange(self.topics):
                 self.dz[d][z] /= self.each[d]
 
-    def _cal_likelihood(self): #计算似然值
-        self.likelihood = 0 #……
+    def _cal_likelihood(self):
+        self.likelihood = 0
         for d in xrange(self.docs):
             for w in self.corpus[d]:
                 self.likelihood += self.corpus[d][w]*math.log(self.p_dw[d][w])
@@ -127,8 +127,7 @@ class Plsa:
             self._e_step()
             self._m_step()
             self._cal_likelihood()
-            print('likelihood %f ' % self.likelihood)
-            if cur != 0 and abs((self.likelihood-cur)/cur) < 1e-8:
+            if cur != 0 and abs((self.likelihood-cur)/cur) < 1e-8: #满足条件
                 break
             cur = self.likelihood
 
@@ -136,7 +135,7 @@ class Plsa:
         doc = dict(filter(lambda x:x[0]<self.words, doc.items()))
         words = sum(doc.values())
         ret = []
-        for i in xrange(self.topics):
+        for _ in xrange(self.topics):
             ret.append(random.random())
         norm = sum(ret)
         for i in xrange(self.topics):
@@ -156,7 +155,7 @@ class Plsa:
                 for z in xrange(self.topics):
                     dw_z[w].append(((self.zw[z][w]*ret[z])**self.beta)/p_dw[w])
             # m step
-            ret = [0]*self.topics
+            ret = [0]*self.topics #数乘
             for z in xrange(self.topics):
                 for w in doc:
                     ret[z] += doc[w]*dw_z[w][z]
@@ -166,31 +165,14 @@ class Plsa:
             likelihood = 0
             for w in doc:
                 likelihood += doc[w]*math.log(p_dw[w])
-            if tmp != 0 and abs((likelihood-tmp)/tmp) < 1e-8:
+            if tmp != 0 and abs((likelihood-tmp)/tmp) < 1e-8: #满足条件
                 break
             tmp = likelihood
         return ret
 
-    def post_prob_sim(self, docd, q):
-        sim = 0
-        for w in docd:
-            tmp = 0
-            for z in xrange(self.topics):
-                tmp += self.zw[z][w]*q[z]
-            sim += docd[w]*math.log(tmp)
-        return sim
-
 #测试
 import unittest
 class TestPlsa(unittest.TestCase):
-
-    def test_train(self):
-        corpus = [{0:2,3:5},{0:5,2:1},{1:2,4:5}]
-        p = Plsa(corpus)
-        p.train()
-        self.assertTrue(cos_sim(p.dz[0], p.dz[1])>cos_sim(p.dz[0], p.dz[2]))
-        self.assertTrue(p.post_prob_sim(p.corpus[0], p.dz[1])>p.post_prob_sim(p.corpus[0], p.dz[2]))
-
     def test_inference(self):
         corpus = [{0:2,3:5},{0:5,2:1},{1:2,4:5}]
         p = Plsa(corpus)
