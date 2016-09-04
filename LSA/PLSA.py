@@ -127,20 +127,21 @@ class Plsa:
             self._e_step()
             self._m_step()
             self._cal_likelihood()
-            if cur != 0 and abs((self.likelihood-cur)/cur) < 1e-8: #满足条件
+            if cur != 0 and abs((self.likelihood-cur)/cur) < 1e-8: #满足条件直接退
                 break
             cur = self.likelihood
 
     def inference(self, doc, max_iter=100): #预测函数
-        doc = dict(filter(lambda x:x[0]<self.words, doc.items()))
+        doc = dict(filter(lambda x:x[0]<self.words, doc.items())) #items获取到的元组中，0位代表词序号，1位代表词的出现次数。这里是在过滤停用词，实际工作时应当改写
         words = sum(doc.values())
         ret = []
         for _ in xrange(self.topics):
-            ret.append(random.random())
+            ret.append(random.random()) #ret向量长度等于需要找到的主题数
         norm = sum(ret)
         for i in xrange(self.topics):
             ret[i] /= norm
         tmp = 0
+        #正式开始，迭代更新ret
         for _ in xrange(max_iter):
             p_dw = {}
             for w in doc:
@@ -154,8 +155,8 @@ class Plsa:
                 dw_z[w] = []
                 for z in xrange(self.topics):
                     dw_z[w].append(((self.zw[z][w]*ret[z])**self.beta)/p_dw[w])
-            # m step
-            ret = [0]*self.topics #数乘
+            # m step，直接把迭代结果反映到ret
+            ret = [0]*self.topics
             for z in xrange(self.topics):
                 for w in doc:
                     ret[z] += doc[w]*dw_z[w][z]
@@ -168,14 +169,14 @@ class Plsa:
             if tmp != 0 and abs((likelihood-tmp)/tmp) < 1e-8: #满足条件
                 break
             tmp = likelihood
-        return ret
+        return ret #得到主题向量，也就是被稀疏化之后的词的出现次数
 
 #测试
 import unittest
 class TestPlsa(unittest.TestCase):
     def test_inference(self):
-        corpus = [{0:2,3:5},{0:5,2:1},{1:2,4:5}]
+        corpus = [{0:2,3:5},{0:5,2:1},{1:2,4:5}] #不同文档某个词汇出现的次数
         p = Plsa(corpus)
         p.train()
-        z = p.inference({0:4, 6:7})
+        z = p.inference({0:4, 6:7}) #输篇文章来测试
         self.assertTrue(abs(cos_sim(p.dz[0], p.dz[1])-cos_sim(p.dz[0], z))<1e-8)
