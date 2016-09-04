@@ -133,10 +133,10 @@ class Plsa:
 
     def inference(self, doc, max_iter=100): #预测函数
         doc = dict(filter(lambda x:x[0]<self.words, doc.items())) #items获取到的元组中，0位代表词序号，1位代表词的出现次数。这里是在过滤停用词，实际工作时应当改写
-        words = sum(doc.values())
+        words = sum(doc.values()) #总词数
         ret = []
         for _ in xrange(self.topics):
-            ret.append(random.random()) #ret向量长度等于需要找到的主题数
+            ret.append(random.random()) #初始ret向量长度等于需要找到的主题数
         norm = sum(ret)
         for i in xrange(self.topics):
             ret[i] /= norm
@@ -158,8 +158,8 @@ class Plsa:
             # m step，直接把迭代结果反映到ret
             ret = [0]*self.topics
             for z in xrange(self.topics):
-                for w in doc:
-                    ret[z] += doc[w]*dw_z[w][z]
+                for w in doc: #遍历次数等于文档词数
+                    ret[z] += doc[w]*dw_z[w][z] #目前ret长度等于文档词数
             for z in xrange(self.topics):
                 ret[z] /= words
             # cal likelihood
@@ -180,3 +180,43 @@ class TestPlsa(unittest.TestCase):
         p.train()
         z = p.inference({0:4, 6:7}) #输篇文章来测试
         self.assertTrue(abs(cos_sim(p.dz[0], p.dz[1])-cos_sim(p.dz[0], z))<1e-8)
+
+def inference(self, doc, max_iter=100):  # 预测函数
+    doc = dict(filter(lambda x: x[0] < self.words, doc.items()))  # items获取到的元组中，0位代表词序号，1位代表词的出现次数。这里是在过滤停用词，实际工作时应当改写
+    words = sum(doc.values())  # 总词数
+    ret = []
+    for _ in xrange(self.topics):
+        ret.append(random.random())  # 初始ret向量长度等于需要找到的主题数
+    norm = sum(ret)
+    for i in xrange(self.topics):
+        ret[i] /= norm
+    tmp = 0
+    # 正式开始，迭代更新ret
+    for _ in xrange(max_iter):
+        p_dw = {}
+        for w in doc:
+            p_dw[w] = 0
+            for _ in range(doc[w]):
+                for z in xrange(self.topics):
+                    p_dw[w] += (ret[z] * self.zw[z][w]) ** self.beta
+        # e setp
+        dw_z = {}
+        for w in doc:
+            dw_z[w] = []
+            for z in xrange(self.topics):
+                dw_z[w].append(((self.zw[z][w] * ret[z]) ** self.beta) / p_dw[w])
+        # m step，直接把迭代结果反映到ret
+        ret = [0] * self.topics
+        for z in xrange(self.topics):
+            for w in doc:  # 遍历次数等于文档词数
+                ret[z] += doc[w] * dw_z[w][z]  # 目前ret长度等于文档词数
+        for z in xrange(self.topics):
+            ret[z] /= words
+        # cal likelihood
+        likelihood = 0
+        for w in doc:
+            likelihood += doc[w] * math.log(p_dw[w])
+        if tmp != 0 and abs((likelihood - tmp) / tmp) < 1e-8:  # 满足条件
+            break
+        tmp = likelihood
+    return ret  # 得到主题向量，也就是被稀疏化之后的词的出现次数
