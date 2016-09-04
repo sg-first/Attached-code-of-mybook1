@@ -78,7 +78,7 @@ class Plsa:
         self.p_dw = [] #每次都要重新计算
         for d in xrange(self.docs):
             self.p_dw.append({}) #加一列
-            for w in self.corpus[d]:
+            for w in self.corpus[d]: #第d个文档
                 tmp = 0
                 for _ in range(self.corpus[d][w]):
                     for z in xrange(self.topics):
@@ -101,7 +101,7 @@ class Plsa:
             self.zw[z] = [0]*self.words
             for d in xrange(self.docs):
                 for w in self.corpus[d]:
-                    self.zw[z][w] += self.corpus[d][w]*self.dw_z[d][w][z]
+                    self.zw[z][w] += self.corpus[d][w]*self.dw_z[d][w][z] #结合第d个文档中w词进行计算
             norm = sum(self.zw[z])
             for w in xrange(self.words):
                 self.zw[z][w] /= norm
@@ -110,7 +110,7 @@ class Plsa:
             self.dz[d] = [0]*self.topics
             for z in xrange(self.topics):
                 for w in self.corpus[d]:
-                    self.dz[d][z] += self.corpus[d][w]*self.dw_z[d][w][z]
+                    self.dz[d][z] += self.corpus[d][w]*self.dw_z[d][w][z] #结合第d个文档中w词进行计算
             for z in xrange(self.topics):
                 self.dz[d][z] /= self.each[d]
 
